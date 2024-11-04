@@ -59,8 +59,6 @@ public class ClientWorker implements Runnable {
     @Override
     public void run() {
         byte[] modifyBytes = modifyRequestHeader();
-        String trim = new String(modifyBytes).trim();
-        System.out.println("trim = " + trim);
         ByteBuffer writeBuffer = getByteBuffer();
 
         writeBuffer.put(modifyBytes);
