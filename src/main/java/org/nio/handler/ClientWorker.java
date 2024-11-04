@@ -133,43 +133,6 @@ public class ClientWorker implements Runnable {
                 keys.clear();
             }
 
-
-//            int readBytes = -1;
-//            writeBuffer.clear();
-//
-//            log.info("try ack read");
-//            SocketChannel clientChannel = (SocketChannel) clientKey.channel();
-//            boolean keepReading = true;
-//            long startTime = System.currentTimeMillis();
-//            while (keepReading) {
-//                readBytes = targetChannel.read(writeBuffer);
-//                log.info("read byte size = {}", readBytes);
-//                if (readBytes == -1) {
-//                    log.info("readBytes = -1. ack write end");
-//                    keepReading = false;
-//                    targetChannel.close();
-//                    break;
-//                }
-//
-//                if (readBytes == 0) {
-//                    log.info("readBytes is zero. wait...");
-//                    sleep(100);
-//                    log.info("ack write end");
-//                    long endTime = System.currentTimeMillis();
-//                    if (endTime - startTime > 10000) {
-//                        keepReading = false;
-//                        log.info("over 1s. ack write end");
-//                    }
-//                    continue;
-//                }
-//                writeBuffer.flip();
-//                while (writeBuffer.hasRemaining()) {
-//                    clientChannel.write(writeBuffer);
-//                }
-//                writeBuffer.clear();
-//
-//            }
-
             log.info("ack write end!!!!!!!!!!!!!");
             selector.close();
 
