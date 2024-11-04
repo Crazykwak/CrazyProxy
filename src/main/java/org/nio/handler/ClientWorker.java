@@ -63,14 +63,13 @@ public class ClientWorker implements Runnable {
 
         writeBuffer.put(modifyBytes);
         writeBuffer.flip();
-        log.info("select start!");
+        log.debug("select start!");
         boolean keepSelect = true;
         selector.wakeup();
         try {
 
             while (keepSelect) {
                 int select = selector.select();
-                log.info("select = {}", select);
 
                 Set<SelectionKey> keys = selector.selectedKeys();
                 for (SelectionKey key : keys) {
@@ -78,7 +77,7 @@ public class ClientWorker implements Runnable {
                     if (key.isConnectable()) {
                         SocketChannel channel = (SocketChannel) key.channel();
                         if (channel.finishConnect()) {
-                            log.info("Connected!!!");
+                            log.info("Connected!!! host = {}", channel.getRemoteAddress());
                             // 연결이 완료되었으므로 이제 OP_WRITE로 등록합니다.
                             channel.register(selector, SelectionKey.OP_WRITE);
                         }
@@ -86,11 +85,11 @@ public class ClientWorker implements Runnable {
                     } else if (key.isWritable()) {
                          SocketChannel targetChannel = (SocketChannel) key.channel();
 
-                        log.info("write");
+                        log.debug("try to write");
                         while (writeBuffer.hasRemaining()) {
-                            log.info("write buffer write!!");
+                            log.debug("write buffer write!!");
                             int write = targetChannel.write(writeBuffer);
-                            log.info("write byte size = {}", write);
+                            log.debug("write byte size = {}", write);
                         }
                         key.interestOps(SelectionKey.OP_READ);
                         writeBuffer.clear();
@@ -98,17 +97,17 @@ public class ClientWorker implements Runnable {
                     } else if (key.isReadable()) {
                         SocketChannel targetChannel = (SocketChannel) key.channel();
 
-                        log.info("read and ack!");
+                        log.debug("read and ack!");
                         SocketChannel clientChannel = (SocketChannel) clientKey.channel();
 
                         int readBytes = -1;
                         while ((readBytes = targetChannel.read(writeBuffer)) > 0) {
-                            log.info("read byte size = {}", readBytes);
+                            log.debug("read byte size = {}", readBytes);
                             writeBuffer.flip();
 
                             writeBuffer.mark();
                             while (writeBuffer.hasRemaining()) {
-                                log.info("write buffer write!!");
+                                log.debug("write buffer write!!");
                                 clientChannel.write(writeBuffer);
                             }
                             writeBuffer.reset();
@@ -131,7 +130,7 @@ public class ClientWorker implements Runnable {
                 keys.clear();
             }
 
-            log.info("ack write end!!!!!!!!!!!!!");
+            log.debug("ack write end!!!!!!!!!!!!!");
             selector.close();
 
 
