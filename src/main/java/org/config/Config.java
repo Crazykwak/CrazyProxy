@@ -1,11 +1,11 @@
 package org.config;
 
 import lombok.Getter;
-import org.nio.SocketInfo;
+import lombok.RequiredArgsConstructor;
 
-import java.net.InetSocketAddress;
 import java.util.Map;
 
+@RequiredArgsConstructor
 public class Config {
 
     private static Config instance;
@@ -19,12 +19,6 @@ public class Config {
     // private 생성자
     private Config(Map portMap) {
         this(portMap, 10, 1024);
-    }
-
-    private Config(Map<String, SocketInfo> portMap, int workerCount, int bufferSize) {
-        this.portMap = portMap;
-        this.workerCount = workerCount;
-        this.bufferSize = bufferSize;
     }
 
     // 인스턴스를 얻는 메서드

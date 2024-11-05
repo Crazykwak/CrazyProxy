@@ -2,8 +2,13 @@ package org.nio.handler;
 
 import lombok.extern.slf4j.Slf4j;
 import org.config.Config;
-import org.nio.SocketInfo;
+import org.config.SSLKeyInfo;
+import org.config.SocketInfo;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLEngineResult;
+import javax.net.ssl.TrustManager;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -11,8 +16,12 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Set;
 
+import static java.lang.Thread.sleep;
 import static org.CrazyProxy.*;
 
 @Slf4j
@@ -21,15 +30,34 @@ public class ClientWorker implements Runnable {
     private final byte[] inputDataBytes;
     private final StringBuilder stringBuilder = new StringBuilder();
     private final String clientAddress;
+    private final SocketInfo socketInfo;
     private final String targetAddress;
     private final SelectionKey clientKey;
     private final Selector selector;
     private final StringBuilder accumulatedData = new StringBuilder();
+    private SSLContext sslContext;
+    private SSLEngine sslEngine;
+    private SSLKeyInfo sslKeyInfo = SSLKeyInfo.getInstance();
     private String path = "/";
 
 
     public ClientWorker(byte[] inputDataBytes, SelectionKey clientKey) throws IOException {
-        log.info("init Worker = {}", Thread.currentThread().getName());
+        log.debug("init Worker = {}", Thread.currentThread().getName());
+
+        try {
+            sslContext = SSLContext.getInstance("TLS");
+            sslContext.init(sslKeyInfo.getKeyManagerFactory().getKeyManagers(), new TrustManager[]{}, new SecureRandom());
+            sslEngine = sslContext.createSSLEngine();
+            sslEngine.setUseClientMode(false);
+            sslEngine.setNeedClientAuth(false);
+            sslEngine.beginHandshake();
+
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        } catch (KeyManagementException e) {
+            throw new RuntimeException(e);
+        }
+
         this.inputDataBytes = inputDataBytes;
 
         selector = Selector.open();
@@ -38,13 +66,19 @@ public class ClientWorker implements Runnable {
         InetSocketAddress clientAddress = (InetSocketAddress) clientChannel.getLocalAddress();
         String clientPort = String.valueOf(clientAddress.getPort());
         SocketInfo socketInfo = config.getPortMap().get(clientPort);
+        this.socketInfo = socketInfo;
         InetSocketAddress inetSocketAddress = socketInfo.getInetSocketAddress();
         this.path = socketInfo.getPath();
         targetAddress = inetSocketAddress.getAddress().getHostAddress();
+
         SocketChannel targetChannel = SocketChannel.open();
         targetChannel.configureBlocking(false);
         targetChannel.socket().setTcpNoDelay(true);
         targetChannel.connect(inetSocketAddress);
+
+        if (socketInfo.isHttps()) {
+
+        }
 
         targetChannel.register(selector, SelectionKey.OP_CONNECT);
 
@@ -58,6 +92,7 @@ public class ClientWorker implements Runnable {
 
     @Override
     public void run() {
+        Set<SelectionKey> keys = null;
         byte[] modifyBytes = modifyRequestHeader();
         ByteBuffer writeBuffer = getByteBuffer();
 
@@ -69,9 +104,9 @@ public class ClientWorker implements Runnable {
         try {
 
             while (keepSelect) {
-                int select = selector.select();
+                selector.select();
 
-                Set<SelectionKey> keys = selector.selectedKeys();
+                keys = selector.selectedKeys();
                 for (SelectionKey key : keys) {
 
                     if (key.isConnectable()) {
@@ -83,15 +118,35 @@ public class ClientWorker implements Runnable {
                         }
 
                     } else if (key.isWritable()) {
-                         SocketChannel targetChannel = (SocketChannel) key.channel();
+                        SocketChannel targetChannel = (SocketChannel) key.channel();
+                        ByteBuffer realWriteBuffer = writeBuffer;
 
-                        log.debug("try to write");
-                        while (writeBuffer.hasRemaining()) {
+                        if (socketInfo.isHttps()) {
+                            log.debug("https mode");
+                            ByteBuffer tmpBuffer = ByteBuffer.allocate(sslEngine.getSession().getPacketBufferSize());
+                            SSLEngineResult result = sslEngine.wrap(writeBuffer, tmpBuffer);
+                            if (result.getStatus() == SSLEngineResult.Status.OK) {
+                                log.debug("SSL Engine OK");
+                                tmpBuffer.flip();
+                                realWriteBuffer = tmpBuffer;
+                            }
+
+                            while (result.getHandshakeStatus() != SSLEngineResult.HandshakeStatus.FINISHED) {
+                                log.debug("Handshake not finished");
+                                sleep(1000);
+                            }
+                        }
+
+                        while (realWriteBuffer.hasRemaining()) {
                             log.debug("write buffer write!!");
-                            int write = targetChannel.write(writeBuffer);
+                            int write = targetChannel.write(realWriteBuffer);
                             log.debug("write byte size = {}", write);
                         }
+
+                        log.debug("try to write");
+
                         key.interestOps(SelectionKey.OP_READ);
+                        realWriteBuffer.clear();
                         writeBuffer.clear();
 
                     } else if (key.isReadable()) {
@@ -137,8 +192,13 @@ public class ClientWorker implements Runnable {
         } catch (IOException e) {
             log.error("target write fail!!", e);
             throw new RuntimeException(e);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
             writeBuffer.clear();
+            if (keys != null) {
+                keys.clear();
+            }
         }
     }
 

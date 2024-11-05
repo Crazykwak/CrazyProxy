@@ -1,4 +1,4 @@
-package org.nio;
+package org.config;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -11,6 +11,7 @@ public class SocketInfo {
 
     private InetSocketAddress inetSocketAddress;
     private String path;
+    private boolean isHttps;
 
     @Override
     public String toString() {
