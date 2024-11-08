@@ -1,9 +1,9 @@
-package org.nio;
+package org.crazyproxy.nio;
 
 import lombok.extern.slf4j.Slf4j;
-import org.config.Config;
-import org.nio.handler.AcceptHandler;
-import org.nio.handler.NioHandler;
+import org.crazyproxy.config.Config;
+import org.crazyproxy.handler.AcceptHandler;
+import org.crazyproxy.handler.NioHandler;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;

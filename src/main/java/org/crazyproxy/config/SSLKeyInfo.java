@@ -1,4 +1,4 @@
-package org.config;
+package org.crazyproxy.config;
 
 import lombok.Getter;
 

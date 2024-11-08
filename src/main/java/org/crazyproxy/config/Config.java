@@ -1,11 +1,9 @@
-package org.config;
+package org.crazyproxy.config;
 
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import java.util.Map;
 
-@RequiredArgsConstructor
 public class Config {
 
     private static Config instance;
@@ -16,9 +14,10 @@ public class Config {
     @Getter
     private final int bufferSize;
 
-    // private 생성자
-    private Config(Map portMap) {
-        this(portMap, 10, 1024);
+    private Config(Map<String, SocketInfo> portMap, int workerCount, int bufferSize) {
+        this.portMap = portMap;
+        this.workerCount = workerCount;
+        this.bufferSize = bufferSize;
     }
 
     // 인스턴스를 얻는 메서드
@@ -26,7 +25,7 @@ public class Config {
         if (instance != null) {
             throw new IllegalStateException("Config has already been initialized");
         }
-        initInstance(portMap, 10);
+        initInstance(portMap, 3);
     }
     public static void initInstance(Map<String, SocketInfo> portMap, int workerCount) {
         if (instance != null) {

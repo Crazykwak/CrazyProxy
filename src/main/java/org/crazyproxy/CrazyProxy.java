@@ -1,22 +1,19 @@
-package org;
+package org.crazyproxy;
 
 import lombok.extern.slf4j.Slf4j;
-import org.config.Config;
-import org.config.SSLKeyInfo;
-import org.nio.SelectorThread;
-import org.config.SocketInfo;
+import org.crazyproxy.config.Config;
+import org.crazyproxy.config.SSLConfig;
+import org.crazyproxy.config.SSLKeyInfo;
+import org.crazyproxy.nio.SelectorThread;
+import org.crazyproxy.config.SocketInfo;
 
-import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.*;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
-import java.security.KeyStore;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
-import java.security.UnrecoverableKeyException;
+import java.security.*;
 import java.security.cert.CertificateException;
 import java.util.HashMap;
 import java.util.Map;
@@ -24,8 +21,6 @@ import java.util.Properties;
 
 @Slf4j
 public class CrazyProxy {
-
-    public static ThreadLocal<ByteBuffer> WriteByteBufferThreadLocal = new ThreadLocal<>();
 
     public static void main(String[] args) {
 //      port : host 맵핑 정보
@@ -41,8 +36,24 @@ public class CrazyProxy {
         File keyFile = new File(keyFilePath);
         if (keyFile.exists()) {
             log.info("Key file exists. try to set SSL Key");
-            setSSLKeyInfo(keyFilePath);
+            SSLKeyInfo sslKeyInfo = setSSLKeyInfo(keyFilePath);
             log.info("Key set done.");
+            try {
+                SSLConfig sslConfig = SSLConfig.getInstance();
+                SSLContext sslContext = sslConfig.getContext();
+                TrustManagerFactory trustManagerFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                trustManagerFactory.init((KeyStore) null);
+                sslContext.init(sslKeyInfo.getKeyManagerFactory().getKeyManagers(), trustManagerFactory.getTrustManagers(), new SecureRandom());
+                SSLSession session = sslContext.createSSLEngine().getSession();
+                session.invalidate();
+
+            } catch (KeyManagementException e) {
+                throw new RuntimeException(e);
+            } catch (NoSuchAlgorithmException e) {
+                throw new RuntimeException(e);
+            } catch (KeyStoreException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         SelectorThread selectorThread = new SelectorThread();
@@ -50,7 +61,7 @@ public class CrazyProxy {
 
     }
 
-    private static void setSSLKeyInfo(String keyFilePath) {
+    private static SSLKeyInfo setSSLKeyInfo(String keyFilePath) {
         try {
             KeyStore keyStore = KeyStore.getInstance("JKS");
             FileInputStream keyStoreStream = new FileInputStream(keyFilePath);
@@ -58,6 +69,7 @@ public class CrazyProxy {
             KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             keyManagerFactory.init(keyStore, "qwerty".toCharArray());
             SSLKeyInfo.initInstance(keyManagerFactory);
+            return SSLKeyInfo.getInstance();
         } catch (KeyStoreException e) {
             throw new RuntimeException(e);
         } catch (FileNotFoundException e) {

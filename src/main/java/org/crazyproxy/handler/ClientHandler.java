@@ -1,7 +1,7 @@
-package org.nio.handler;
+package org.crazyproxy.handler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.config.Config;
+import org.crazyproxy.config.Config;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -20,9 +20,10 @@ public class ClientHandler implements NioHandler {
 
     public ClientHandler() {
         ThreadFactory threadFactory = new ThreadFactory() {
+
             @Override
             public Thread newThread(Runnable r) {
-                Thread thread = new Thread(r);
+                Thread thread = new CustomeThread(r);
                 thread.setDaemon(true);
                 return thread;
             }
