@@ -3,7 +3,6 @@ package org.crazyproxy.handler;
 import lombok.extern.slf4j.Slf4j;
 import org.crazyproxy.config.Config;
 import org.crazyproxy.config.SSLConfig;
-import org.crazyproxy.config.SSLKeyInfo;
 import org.crazyproxy.config.SocketInfo;
 
 import javax.net.ssl.*;
@@ -31,9 +30,12 @@ public class ClientWorker implements Runnable {
     private final StringBuilder accumulatedData = new StringBuilder();
     private SSLContext sslContext;
     private SSLEngine sslEngine;
-    private SSLKeyInfo sslKeyInfo = SSLKeyInfo.getInstance();
     private String path = "/";
-    private SSLSession sslSession;
+    private ByteBuffer myAppData;
+    private ByteBuffer myNetData;
+    private ByteBuffer peerAppData;
+    private ByteBuffer peerNetData;
+    private ByteBuffer tmpBuffer;
 
     private ExecutorService executor = Executors.newSingleThreadExecutor();
 
@@ -72,20 +74,23 @@ public class ClientWorker implements Runnable {
 
         this.clientAddress = clientAddress.getAddress().getHostAddress();
         this.clientKey = clientKey;
+
+        CustomeThread customeThread = getCustomeThread();
+        myAppData = customeThread.getMyAppData();
+        myNetData = customeThread.getMyNetData();
+        peerAppData = customeThread.getPeerAppData();
+        peerNetData = customeThread.getPeerNetData();
+        tmpBuffer = customeThread.getTmpBuffer();
+
+        myNetData.clear();
+        peerNetData.clear();
+        peerAppData.clear();
+        peerNetData.clear();
     }
 
     private boolean doHandShake(SocketChannel targetChannel) throws IOException, InterruptedException {
         sslEngine.beginHandshake();
         SSLEngineResult.HandshakeStatus handshakeStatus = sslEngine.getHandshakeStatus();
-        //todo 버퍼 알록 고쳐야함.
-        CustomeThread customeThread = getCustomeThread();
-        ByteBuffer myAppData = customeThread.getMyAppData();
-        ByteBuffer myNetData = customeThread.getMyNetData();
-        ByteBuffer peerAppData = customeThread.getPeerAppData();
-        ByteBuffer peerNetData = customeThread.getPeerNetData();
-
-        myNetData.clear();
-        peerNetData.clear();
         SSLEngineResult result;
 
         while (handshakeStatus != SSLEngineResult.HandshakeStatus.FINISHED &&
@@ -235,8 +240,6 @@ public class ClientWorker implements Runnable {
         Set<SelectionKey> keys = null;
         byte[] modifyBytes = modifyRequestHeader();
 
-        CustomeThread customeThread = getCustomeThread();
-        ByteBuffer myAppData = customeThread.getMyAppData();
         myAppData.put(modifyBytes);
         myAppData.flip();
         boolean keepSelect = true;
@@ -315,7 +318,6 @@ public class ClientWorker implements Runnable {
                             ByteBuffer realReadBuffer = myAppData;
 
                             if (socketInfo.isHttps()) {
-                                // todo 알록 고쳐야함
                                 ByteBuffer tmpBuffer = ByteBuffer.allocate(sslEngine.getSession().getApplicationBufferSize());
                                 tmpBuffer.clear();
 
