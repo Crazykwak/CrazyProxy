@@ -74,7 +74,9 @@ public class ClientWorker implements Runnable {
 
         this.clientAddress = clientAddress.getAddress().getHostAddress();
         this.clientKey = clientKey;
+    }
 
+    private void setByteBuffer() {
         CustomeThread customeThread = getCustomeThread();
         myAppData = customeThread.getMyAppData();
         myNetData = customeThread.getMyNetData();
@@ -86,6 +88,15 @@ public class ClientWorker implements Runnable {
         peerNetData.clear();
         peerAppData.clear();
         peerNetData.clear();
+    }
+
+    private static CustomeThread getCustomeThread() {
+        Thread thread = Thread.currentThread();
+        if (!(thread instanceof CustomeThread)) {
+            throw new RuntimeException("Unexpected thread " + thread.getClass().getName());
+        }
+        CustomeThread customeThread = (CustomeThread) thread;
+        return customeThread;
     }
 
     private boolean doHandShake(SocketChannel targetChannel) throws IOException, InterruptedException {
@@ -237,6 +248,7 @@ public class ClientWorker implements Runnable {
 
     @Override
     public void run() {
+        setByteBuffer();
         Set<SelectionKey> keys = null;
         byte[] modifyBytes = modifyRequestHeader();
 
@@ -274,9 +286,6 @@ public class ClientWorker implements Runnable {
                         ByteBuffer realWriteBuffer = myAppData;
 
                         if (socketInfo.isHttps()) {
-                            //todo 버퍼 알록 고쳐야함.
-                            SSLSession session = sslEngine.getSession();
-                            ByteBuffer tmpBuffer = ByteBuffer.allocate(session.getPacketBufferSize());
                             SSLEngineResult result = sslEngine.wrap(myAppData, tmpBuffer);
 
                             switch (result.getStatus()) {
@@ -440,14 +449,5 @@ public class ClientWorker implements Runnable {
         stringBuilder.insert(i, this.path);
 
         return stringBuilder.toString().getBytes(StandardCharsets.UTF_8);
-    }
-
-    private static CustomeThread getCustomeThread() {
-        Thread thread = Thread.currentThread();
-        if (!(thread instanceof CustomeThread)) {
-            throw new RuntimeException("Unexpected thread " + thread.getClass().getName());
-        }
-        CustomeThread customeThread = (CustomeThread) thread;
-        return customeThread;
     }
 }
