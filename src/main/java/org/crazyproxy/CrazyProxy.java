@@ -12,6 +12,7 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.security.*;
 import java.security.cert.CertificateException;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -44,7 +45,7 @@ public class CrazyProxy {
             SSLContext sslContext = sslConfig.getContext();
 
             try {
-                trustManagers = createTrustManager(trustedCertFile, "storepass");
+                trustManagers = createTrustManager(trustedCertFile, "changeit");
                 sslContext.init(sslKeyInfo.getKeyManagerFactory().getKeyManagers(), trustManagers, new SecureRandom());
             } catch (KeyManagementException e) {
                 throw new RuntimeException(e);
@@ -115,6 +116,9 @@ public class CrazyProxy {
             throw new RuntimeException(e);
         }
         try {
+            log.info("trustStore = {}", trustStore);
+            if (trustStore != null) {
+            }
             trustFactory.init((KeyStore) trustStore);
         } catch (KeyStoreException e) {
             throw new RuntimeException(e);

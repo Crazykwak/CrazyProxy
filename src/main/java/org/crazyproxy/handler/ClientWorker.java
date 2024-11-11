@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.crazyproxy.config.Config;
 import org.crazyproxy.config.SSLConfig;
 import org.crazyproxy.config.SocketInfo;
+import org.crazyproxy.util.SocketUtil;
 
 import javax.net.ssl.*;
 import java.io.IOException;
@@ -19,7 +20,7 @@ import java.util.concurrent.Executors;
 
 @Slf4j
 public class ClientWorker implements Runnable {
-    private Config config = Config.getInstance();
+    private final Config config = Config.getInstance();
     private final byte[] inputDataBytes;
     private final StringBuilder stringBuilder = new StringBuilder();
     private final String clientAddress;
@@ -37,6 +38,7 @@ public class ClientWorker implements Runnable {
     private ByteBuffer peerNetData;
     private ByteBuffer tmpBuffer;
 
+    private SocketUtil socketUtil = SocketUtil.getInstance();
     private ExecutorService executor = Executors.newSingleThreadExecutor();
 
 
@@ -111,6 +113,7 @@ public class ClientWorker implements Runnable {
                 case NEED_WRAP:
                     myNetData.clear();
                     try {
+                        log.debug("[handshake]need wrap");
                         result = sslEngine.wrap(myAppData, myNetData);
                         handshakeStatus = result.getHandshakeStatus();
                     } catch (SSLException e) {
@@ -151,6 +154,7 @@ public class ClientWorker implements Runnable {
                     break;
 
                 case NEED_UNWRAP:
+                    log.debug("[handshake]need unwrap");
                     if (targetChannel.read(peerNetData) < 0) {
                         if (sslEngine.isInboundDone() && sslEngine.isOutboundDone()) {
                             return false;
@@ -170,21 +174,25 @@ public class ClientWorker implements Runnable {
                         peerNetData.compact();
                         handshakeStatus = result.getHandshakeStatus();
                     } catch (SSLException e) {
-                        log.error("A problem was encountered while processing the data that caused the SSLEngine to abort. Will try to properly close connection... {}", e.getMessage());
+                        log.error("A problem was encountered while processing the data that caused the SSLEngine to abort. Will try to properly close connection...", e);
                         sslEngine.closeOutbound();
                         handshakeStatus = sslEngine.getHandshakeStatus();
                         return false;
                     }
                     switch (result.getStatus()) {
                         case OK:
+                            log.debug("[handshake][need_unwrap]OK");
                             break;
                         case BUFFER_UNDERFLOW:
+                            log.debug("[handshake][need_unwrap]buffer_underflow");
                             peerNetData = handleBufferUnderFlow(peerNetData);
                             break;
                         case BUFFER_OVERFLOW:
+                            log.debug("[handshake][need_unwrap]buffer_overflow");
                             peerAppData = enlargeApplicationBuffer(peerAppData);
                             break;
                         case CLOSED:
+                            log.debug("[handshake][need_unwrap]closed");
                             if (sslEngine.isOutboundDone()) {
                                 return false;
                             }
@@ -197,13 +205,13 @@ public class ClientWorker implements Runnable {
                     break;
 
                 case NEED_TASK:
+                    log.debug("[handshake]need task");
                     Runnable task;
                     while ((task = sslEngine.getDelegatedTask()) != null) {
                         executor.execute(task);
                     }
                     handshakeStatus = sslEngine.getHandshakeStatus();
                     break;
-
                 case FINISHED:
                     log.info("handshake finished");
                     break;
@@ -215,6 +223,7 @@ public class ClientWorker implements Runnable {
             }
         }
 
+        log.debug("handshakeStatus = {}", handshakeStatus);
         return true;
 
     }
@@ -252,6 +261,9 @@ public class ClientWorker implements Runnable {
         Set<SelectionKey> keys = null;
         byte[] modifyBytes = modifyRequestHeader();
 
+        SocketChannel clientChannel = null;
+        SocketChannel targetChannel = null;
+
         myAppData.put(modifyBytes);
         myAppData.flip();
         boolean keepSelect = true;
@@ -272,8 +284,8 @@ public class ClientWorker implements Runnable {
                             if (socketInfo.isHttps()) {
                                 if (!doHandShake(channel)) {
                                     log.error("handshake failed. close channel");
-                                    channel.close();
-                                    clientKey.channel().close();
+                                    socketUtil.socketClose(channel);
+                                    socketUtil.socketClose(clientChannel);
                                     continue;
                                 }
                             }
@@ -282,26 +294,27 @@ public class ClientWorker implements Runnable {
                         }
 
                     } else if (key.isWritable()) {
-                        SocketChannel targetChannel = (SocketChannel) key.channel();
+                        targetChannel = (SocketChannel) key.channel();
                         ByteBuffer realWriteBuffer = myAppData;
 
                         if (socketInfo.isHttps()) {
                             SSLEngineResult result = sslEngine.wrap(myAppData, tmpBuffer);
 
+                            // todo. it's bothering
                             switch (result.getStatus()) {
                                 case OK:
-                                    log.info("write OK");
+                                    log.debug("write OK");
                                     tmpBuffer.flip();
                                     realWriteBuffer = tmpBuffer;
                                     break;
                                 case BUFFER_OVERFLOW:
-                                    log.info("Buffer overflow");
+                                    log.debug("Buffer overflow");
                                     break;
                                 case BUFFER_UNDERFLOW:
-                                    log.info("Buffer Underflow");
+                                    log.debug("Buffer Underflow");
                                     break;
                                 case CLOSED:
-                                    log.info("Connection closed");
+                                    log.debug("Connection closed");
                                     break;
                                 default:
                                     throw new IllegalStateException("Unexpected value: " + result.getStatus());
@@ -317,8 +330,9 @@ public class ClientWorker implements Runnable {
                         myAppData.clear();
 
                     } else if (key.isReadable()) {
-                        SocketChannel targetChannel = (SocketChannel) key.channel();
-                        SocketChannel clientChannel = (SocketChannel) clientKey.channel();
+                        log.debug("isreadable");
+                        targetChannel = (SocketChannel) key.channel();
+                        clientChannel = (SocketChannel) clientKey.channel();
                         myAppData.clear();
 
                         int readBytes = targetChannel.read(myAppData);
@@ -327,7 +341,6 @@ public class ClientWorker implements Runnable {
                             ByteBuffer realReadBuffer = myAppData;
 
                             if (socketInfo.isHttps()) {
-                                ByteBuffer tmpBuffer = ByteBuffer.allocate(sslEngine.getSession().getApplicationBufferSize());
                                 tmpBuffer.clear();
 
                                 SSLEngineResult result = null;
@@ -395,9 +408,13 @@ public class ClientWorker implements Runnable {
 
 
         } catch (IOException e) {
-            log.error("target write fail!!", e);
+            log.error("target write fail!! socket close", e);
+            socketUtil.socketClose(clientChannel);
+            socketUtil.socketClose(targetChannel);
             throw new RuntimeException(e);
         } catch (InterruptedException e) {
+            socketUtil.socketClose(clientChannel);
+            socketUtil.socketClose(targetChannel);
             throw new RuntimeException(e);
         } finally {
             myAppData.clear();
