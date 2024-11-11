@@ -2,15 +2,16 @@ package org.crazyproxy.nio;
 
 import lombok.extern.slf4j.Slf4j;
 import org.crazyproxy.config.Config;
+import org.crazyproxy.config.SocketInfo;
 import org.crazyproxy.handler.AcceptHandler;
 import org.crazyproxy.handler.NioHandler;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
+import java.util.Map;
 import java.util.Set;
 
 @Slf4j
@@ -19,8 +20,6 @@ public class SelectorThread extends Thread {
     boolean bStop = false;
     private Selector selector;
     private final Config config = Config.getInstance();
-    private final ByteBuffer tmpBuffer = ByteBuffer.allocate(1024 * 1024);
-    private boolean allConnected = false;
 
     public void run() {
 
@@ -28,18 +27,7 @@ public class SelectorThread extends Thread {
             selector = Selector.open();
 
             // 지정된 포트로 서버 열기
-            for (String port : config.getPortMapKeySet()) {
-                log.info("Listening port setting start");
-                ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
-                serverSocketChannel.socket().bind(new InetSocketAddress(Integer.parseInt(port)));
-                serverSocketChannel.configureBlocking(false);
-                SelectionKey register = serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
-                register.attach(new AcceptHandler());
-                log.info("Listening on port {}", port);
-
-            }
-            log.info("Listening on all ports and targets");
-
+            openPorts();
 
         } catch (IOException e) {
             log.error("port accept IOException. please check portMap configuration",e);
@@ -84,5 +72,21 @@ public class SelectorThread extends Thread {
         }
 
 
+    }
+
+    private void openPorts() throws IOException {
+        log.info("Listening port setting start");
+        Map<String, SocketInfo> portMap = config.getPortMap();
+        for (String port : config.getPortMapKeySet()) {
+            ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
+            serverSocketChannel.socket().bind(new InetSocketAddress(Integer.parseInt(port)));
+            serverSocketChannel.configureBlocking(false);
+            SelectionKey register = serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+            register.attach(new AcceptHandler());
+            SocketInfo socketInfo = portMap.get(port);
+            log.info("Listening on port = {}, target = {}, path = {}", port, socketInfo.getInetSocketAddress().toString(), socketInfo.getPath());
+
+        }
+        log.info("Listening on all ports and targets");
     }
 }
