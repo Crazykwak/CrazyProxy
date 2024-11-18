@@ -25,7 +25,7 @@ public class Config {
         if (instance != null) {
             throw new IllegalStateException("Config has already been initialized");
         }
-        initInstance(portMap, 3);
+        initInstance(portMap, 50);
     }
     public static void initInstance(Map<String, SocketInfo> portMap, int workerCount) {
         if (instance != null) {
