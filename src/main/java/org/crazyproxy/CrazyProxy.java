@@ -6,13 +6,13 @@ import org.crazyproxy.config.SSLConfig;
 import org.crazyproxy.config.SSLKeyInfo;
 import org.crazyproxy.nio.SelectorThread;
 import org.crazyproxy.config.SocketInfo;
+import org.crazyproxy.trusted.AllTrustManager;
 
 import javax.net.ssl.*;
 import java.io.*;
 import java.net.InetSocketAddress;
 import java.security.*;
 import java.security.cert.CertificateException;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -21,7 +21,6 @@ import java.util.Properties;
 public class CrazyProxy {
 
     public static void main(String[] args) {
-//      port : host 맵핑 정보
         log.info("try to portMap setting");
         final Map<String, SocketInfo> portMap = initSocketInfoHashMap();
         log.info("portMap setting done.");
@@ -29,27 +28,18 @@ public class CrazyProxy {
         // todo. need worker count and bufferSize setting
         Config.initInstance(portMap);
 
-        // todo. keyFilePath use -D option
-        String keyFilePath = System.getProperty("org.crazyproxy.keyFilePath", "server.jks");
-        File keyFile = new File(keyFilePath);
-        SSLKeyInfo sslKeyInfo = null;
-        if (keyFile.exists()) {
-            log.info("Key file exists. try to set SSL Key");
-            sslKeyInfo = setSSLKeyInfo(keyFilePath);
-            log.info("Key set done.");
+        SSLConfig sslConfig = SSLConfig.getInstance();
+        SSLContext sslContext = sslConfig.getContext();
+        KeyManager[] keyManagers = null;
+        TrustManager[] trustManagers = null;
 
-            String trustedCert = System.getProperty("org.crazyproxy.trustedCert", "trustedCerts.jsk");
-            File trustedCertFile = new File(trustedCert);
-            TrustManager[] trustManagers = null;
-            SSLConfig sslConfig = SSLConfig.getInstance();
-            SSLContext sslContext = sslConfig.getContext();
+        keyManagers = getKeyManagers();
+        trustManagers = getTrustManager();
 
-            try {
-                trustManagers = createTrustManager(trustedCertFile, "changeit");
-                sslContext.init(sslKeyInfo.getKeyManagerFactory().getKeyManagers(), trustManagers, new SecureRandom());
-            } catch (KeyManagementException e) {
-                throw new RuntimeException(e);
-            }
+        try {
+            sslContext.init(keyManagers, trustManagers, new SecureRandom());
+        } catch (KeyManagementException e) {
+            throw new RuntimeException(e);
         }
 
         SelectorThread selectorThread = new SelectorThread();
@@ -57,13 +47,60 @@ public class CrazyProxy {
 
     }
 
+    /**
+     * Create SSL KeyManager. if -D option org.crazyproxy.keyFilePath is null then keymanager is null
+     * @return KeyManager[] for SSLContext
+     */
+    private static KeyManager[] getKeyManagers() {
+
+        String keyFilePath = System.getProperty("org.crazyproxy.keyFilePath", null);
+        File keyFile = null;
+        KeyManager[] keyManagers = null;
+        if (keyFilePath != null) {
+            keyFile = new File(keyFilePath);
+        }
+
+        SSLKeyInfo sslKeyInfo;
+        // 키 파일 여부 확인. 없으면 null로 실행
+        if (keyFile != null && keyFile.exists()) {
+            log.info("Key file exists. try to set SSL Key");
+            sslKeyInfo = setSSLKeyInfo(keyFilePath);
+            keyManagers = sslKeyInfo.getKeyManagerFactory().getKeyManagers();
+            log.info("Key set done.");
+        }
+        return keyManagers;
+    }
+
+    /**
+     * create TrustManager. if -D option org.crazyproxy.trustedCert is null then All Trust Manager class is available
+     * @return TrustManager[] for SSLContext
+     */
+    private static TrustManager[] getTrustManager() {
+        TrustManager[] trustManagers;
+        String trustedCert = System.getProperty("org.crazyproxy.trustedCert", null);
+        // null이면 AllTrustManager 객체 생성. 모든 인증서를 ㅇㅋㅇㅋ 하는 친구
+        if (trustedCert != null) {
+            log.info("Trusted certificate exists. try to set SSL Trust");
+            File trustedCertFile = new File(trustedCert);
+            trustManagers = createTrustManager(trustedCertFile, "changeit");
+        } else {
+            trustManagers = new TrustManager[]{new AllTrustManager()};
+        }
+        return trustManagers;
+    }
+
+    /**
+     * set SSL Key Info. if org.crazyproxy.keyFilePath is not null. active this method
+     * @param keyFilePath
+     * @return
+     */
     private static SSLKeyInfo setSSLKeyInfo(String keyFilePath) {
         try {
             KeyStore keyStore = KeyStore.getInstance("JKS");
             FileInputStream keyStoreStream = new FileInputStream(keyFilePath);
-            keyStore.load(keyStoreStream, "storepass".toCharArray());
+            keyStore.load(keyStoreStream, "changeit".toCharArray());
             KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            keyManagerFactory.init(keyStore, "keypass".toCharArray());
+            keyManagerFactory.init(keyStore, "changeit".toCharArray());
             SSLKeyInfo.initInstance(keyManagerFactory);
             return SSLKeyInfo.getInstance();
         } catch (KeyStoreException e) {
@@ -82,10 +119,16 @@ public class CrazyProxy {
         }
     }
 
+    /**
+     * this method is TrustManger creator. if org.crazyproxy.trustedCert is not null. active this method
+     * @param trustedCertFile
+     * @param keystorePassword
+     * @return
+     */
     private static TrustManager[] createTrustManager(File trustedCertFile, String keystorePassword) {
         InputStream trustStoreIS = null;
         KeyStore trustStore = null;
-        if (trustedCertFile.exists()) {
+        if (trustedCertFile != null && trustedCertFile.exists()) {
             try {
                 trustStore = KeyStore.getInstance("JKS");
                 trustStoreIS = new FileInputStream(trustedCertFile.getAbsolutePath());
@@ -127,11 +170,16 @@ public class CrazyProxy {
 
     }
 
+    /**
+     * Initiate for Port forwarding HashMap. you must set mapping.properties file.
+     * @return
+     */
     private static Map<String, SocketInfo> initSocketInfoHashMap() {
         final Map<String, SocketInfo> portMap = new HashMap<>();
 
         FileInputStream fis = null;
         try {
+            // todo. file address must inject by option.
             fis = new FileInputStream("mapping.properties");
             Properties properties = new Properties();
             properties.load(fis);
@@ -170,7 +218,7 @@ public class CrazyProxy {
 
                 // Innet객체 생성하여 socketInfo를 만들어주자.
                 InetSocketAddress address = new InetSocketAddress(host, targetPort);
-                portMap.put(port, new SocketInfo(address, path, isHttps));
+                portMap.put(port, new SocketInfo(address, host, path, isHttps));
 
             }
         } catch (FileNotFoundException e) {
