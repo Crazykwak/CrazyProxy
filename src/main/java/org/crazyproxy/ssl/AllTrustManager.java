@@ -1,4 +1,4 @@
-package org.crazyproxy.trusted;
+package org.crazyproxy.ssl;
 
 import javax.net.ssl.X509TrustManager;
 import java.security.cert.CertificateException;

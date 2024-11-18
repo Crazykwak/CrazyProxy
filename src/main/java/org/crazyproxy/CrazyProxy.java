@@ -6,7 +6,7 @@ import org.crazyproxy.config.SSLConfig;
 import org.crazyproxy.config.SSLKeyInfo;
 import org.crazyproxy.nio.SelectorThread;
 import org.crazyproxy.config.SocketInfo;
-import org.crazyproxy.trusted.AllTrustManager;
+import org.crazyproxy.ssl.AllTrustManager;
 
 import javax.net.ssl.*;
 import java.io.*;
