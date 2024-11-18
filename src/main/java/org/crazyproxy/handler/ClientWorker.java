@@ -54,7 +54,7 @@ public class ClientWorker implements Runnable {
         this.socketInfo = socketInfo;
         InetSocketAddress inetSocketAddress = socketInfo.getInetSocketAddress();
         this.path = socketInfo.getPath();
-        targetAddress = inetSocketAddress.getAddress().getHostAddress();
+        targetAddress = socketInfo.getHost();
 
         SocketChannel targetChannel = SocketChannel.open();
         targetChannel.configureBlocking(false);
@@ -113,7 +113,6 @@ public class ClientWorker implements Runnable {
                 case NEED_WRAP:
                     myNetData.clear();
                     try {
-                        log.debug("[handshake]need wrap");
                         result = sslEngine.wrap(myAppData, myNetData);
                         handshakeStatus = result.getHandshakeStatus();
                     } catch (SSLException e) {
@@ -154,7 +153,6 @@ public class ClientWorker implements Runnable {
                     break;
 
                 case NEED_UNWRAP:
-                    log.debug("[handshake]need unwrap");
                     if (targetChannel.read(peerNetData) < 0) {
                         if (sslEngine.isInboundDone() && sslEngine.isOutboundDone()) {
                             return false;
@@ -181,18 +179,14 @@ public class ClientWorker implements Runnable {
                     }
                     switch (result.getStatus()) {
                         case OK:
-                            log.debug("[handshake][need_unwrap]OK");
                             break;
                         case BUFFER_UNDERFLOW:
-                            log.debug("[handshake][need_unwrap]buffer_underflow");
                             peerNetData = handleBufferUnderFlow(peerNetData);
                             break;
                         case BUFFER_OVERFLOW:
-                            log.debug("[handshake][need_unwrap]buffer_overflow");
                             peerAppData = enlargeApplicationBuffer(peerAppData);
                             break;
                         case CLOSED:
-                            log.debug("[handshake][need_unwrap]closed");
                             if (sslEngine.isOutboundDone()) {
                                 return false;
                             }
@@ -205,7 +199,6 @@ public class ClientWorker implements Runnable {
                     break;
 
                 case NEED_TASK:
-                    log.debug("[handshake]need task");
                     Runnable task;
                     while ((task = sslEngine.getDelegatedTask()) != null) {
                         executor.execute(task);
@@ -213,10 +206,8 @@ public class ClientWorker implements Runnable {
                     handshakeStatus = sslEngine.getHandshakeStatus();
                     break;
                 case FINISHED:
-                    log.info("handshake finished");
                     break;
                 case NOT_HANDSHAKING:
-                    log.info("handshake not_handshaking");
                     break;
                 default:
                     throw new IllegalStateException("Invalid Handshake Status: " + handshakeStatus);
@@ -264,6 +255,7 @@ public class ClientWorker implements Runnable {
         SocketChannel clientChannel = null;
         SocketChannel targetChannel = null;
 
+        myAppData.clear();
         myAppData.put(modifyBytes);
         myAppData.flip();
         boolean keepSelect = true;
@@ -279,7 +271,7 @@ public class ClientWorker implements Runnable {
                     if (key.isConnectable()) {
                         SocketChannel channel = (SocketChannel) key.channel();
                         if (channel.finishConnect()) {
-                            log.info("Connected!!! host = {}", channel.getRemoteAddress());
+                            log.debug("Connected!!! host = {}", channel.getRemoteAddress());
 
                             if (socketInfo.isHttps()) {
                                 if (!doHandShake(channel)) {
@@ -330,7 +322,6 @@ public class ClientWorker implements Runnable {
                         myAppData.clear();
 
                     } else if (key.isReadable()) {
-                        log.debug("isreadable");
                         targetChannel = (SocketChannel) key.channel();
                         clientChannel = (SocketChannel) clientKey.channel();
                         myAppData.clear();
@@ -351,22 +342,17 @@ public class ClientWorker implements Runnable {
                                 }
                                 SSLEngineResult.Status status = result.getStatus();
 
-                                log.info("status = {}", status);
                                 switch (status) {
                                     case OK:
+                                        log.debug("OK");
                                         tmpBuffer.flip();
-                                        log.info("tmpBuffer remaining = {}", tmpBuffer);
-                                        log.info("realReadBuffer remaining = {}", realReadBuffer);
-                                        log.debug("str = {}, realbuff = {}",
-                                                new String(tmpBuffer.array(), tmpBuffer.position(), tmpBuffer.limit()),
-                                                new String(realReadBuffer.array(), 0, realReadBuffer.position()));
                                         realReadBuffer = tmpBuffer;
                                         break;
                                     case BUFFER_UNDERFLOW:
-                                        log.info("buffer underflow");
+                                        log.debug("buffer underflow");
                                         break;
                                     case BUFFER_OVERFLOW:
-                                        log.info("buffer overflow");
+                                        log.debug("buffer overflow");
                                         tmpBuffer = enlargeApplicationBuffer(tmpBuffer);
                                         break;
                                     case CLOSED:
