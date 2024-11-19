@@ -11,6 +11,8 @@ import org.crazyproxy.ssl.AllTrustManager;
 import javax.net.ssl.*;
 import java.io.*;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.util.HashMap;
@@ -172,6 +174,7 @@ public class CrazyProxy {
 
     /**
      * Initiate for Port forwarding HashMap. you must set mapping.properties file.
+     * todo. URI 클래스를 활용해도 괜찮을 듯.
      * @return
      */
     private static Map<String, SocketInfo> initSocketInfoHashMap() {
@@ -204,19 +207,19 @@ public class CrazyProxy {
                 // 포트 정보 있는지 체크. http:를 없앴기 때문에 동작함.
                 int portIdx = host.lastIndexOf(":");
                 if (portIdx != -1) {
-                    String portInfo = host.substring(portIdx + 1);
+                    int pathIndex = host.indexOf("/");
+                    String portInfo = host.substring(portIdx + 1, pathIndex == -1 ? host.length() : pathIndex);
                     targetPort = Integer.parseInt(portInfo);
-                    host = host.substring(0, portIdx);
-                }
 
-                // path 정보 추출
-                int pathIndex = host.indexOf("/");
-                if (pathIndex != -1) {
-                    path = host.substring(pathIndex);
-                    host = host.substring(0, pathIndex);
+                    if (pathIndex != -1) {
+                        path = host.substring(pathIndex);
+                        host = host.substring(0, portIdx);
+                    } else {
+                        host = host.substring(0, portIdx);
+                    }
                 }
+                host = host.replace("/", "");
 
-                // Innet객체 생성하여 socketInfo를 만들어주자.
                 InetSocketAddress address = new InetSocketAddress(host, targetPort);
                 portMap.put(port, new SocketInfo(address, host, path, isHttps));
 
@@ -226,6 +229,7 @@ public class CrazyProxy {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
         return portMap;
     }
 }
