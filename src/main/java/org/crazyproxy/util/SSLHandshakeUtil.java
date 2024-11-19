@@ -14,6 +14,18 @@ import java.util.concurrent.ExecutorService;
 public class SSLHandshakeUtil {
 
 
+    /**
+     * SSL 헨드세이크 메서드. SSL 상태는 SSLEngine마다 다르기 때문에, 모든 연결에서 이 메서드를 호출해야 함.
+     * @param sslEngine SSLContext로 뽑은 SSLEngine
+     * @param executor needTask 상태시 만들 Executor service
+     * @param channel target Channel. 핸드세이크할 서버
+     * @param myAppData 클라이언트 데이터
+     * @param myNetData wrap 된 클라이언트 데이터
+     * @param peerAppData 서버 데이터
+     * @param peerNetData unwrap 한 서버 데이터
+     * @return
+     * @throws IOException
+     */
     public static boolean doHandshake(SSLEngine sslEngine,
                                       ExecutorService executor,
                                       SocketChannel channel,
