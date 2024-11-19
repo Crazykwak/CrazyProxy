@@ -21,6 +21,7 @@ import java.util.concurrent.Executors;
 
 @Slf4j
 public class ClientWorker implements Runnable {
+
     private final ClientWorkConfig clientWorkConfig = ClientWorkConfig.getInstance();
     private final byte[] inputDataBytes;
     private final StringBuilder stringBuilder = new StringBuilder();
@@ -209,21 +210,18 @@ public class ClientWorker implements Runnable {
                                         break;
                                     case CLOSED:
                                         log.debug("SSL Engine CLOSED");
+                                        socketUtil.socketClose(targetChannel);
+                                        socketUtil.socketClose(clientChannel);
                                         break;
                                     default:
                                         throw new IllegalStateException("Unexpected value: " + result.getStatus());
                                 }
                             }
 
-                            realReadBuffer.mark();
                             while (realReadBuffer.hasRemaining()) {
-                                log.debug("write buffer write!!");
                                 clientChannel.write(realReadBuffer);
                             }
-                            realReadBuffer.reset();
-                            if (isLastChunk(realReadBuffer)) {
-                                keepSelect = false;
-                            }
+
                             accumulatedData.setLength(0);
                             realReadBuffer.clear();
                             myAppData.clear();
@@ -241,7 +239,6 @@ public class ClientWorker implements Runnable {
                 keys.clear();
             }
 
-            log.debug("ack write end!!!!!!!!!!!!!");
             selector.close();
 
 
@@ -300,8 +297,6 @@ public class ClientWorker implements Runnable {
             stringBuilder.deleteCharAt(pathIndex);
             stringBuilder.insert(pathIndex, this.path);
         }
-
-        log.info("str = {}", stringBuilder.toString());
 
         return stringBuilder.toString().getBytes(StandardCharsets.UTF_8);
     }
