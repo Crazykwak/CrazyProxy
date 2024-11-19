@@ -1,7 +1,7 @@
 package org.crazyproxy.handler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.crazyproxy.config.Config;
+import org.crazyproxy.config.ClientWorkConfig;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -14,9 +14,9 @@ import java.util.concurrent.ThreadFactory;
 @Slf4j
 public class ClientHandler implements NioHandler {
 
-    private final Config config = Config.getInstance();
+    private final ClientWorkConfig clientWorkConfig = ClientWorkConfig.getInstance();
     private final ExecutorService executor;
-    private final ByteBuffer buffer = ByteBuffer.allocate(config.getBufferSize());
+    private final ByteBuffer buffer = ByteBuffer.allocate(clientWorkConfig.getBufferSize());
 
     public ClientHandler() {
         ThreadFactory threadFactory = new ThreadFactory() {
@@ -28,7 +28,7 @@ public class ClientHandler implements NioHandler {
                 return thread;
             }
         };
-        executor = Executors.newFixedThreadPool(config.getWorkerCount(), threadFactory);
+        executor = Executors.newFixedThreadPool(clientWorkConfig.getWorkerCount(), threadFactory);
     }
 
     @Override

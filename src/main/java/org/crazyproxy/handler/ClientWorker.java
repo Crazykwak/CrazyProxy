@@ -1,7 +1,7 @@
 package org.crazyproxy.handler;
 
 import lombok.extern.slf4j.Slf4j;
-import org.crazyproxy.config.Config;
+import org.crazyproxy.config.ClientWorkConfig;
 import org.crazyproxy.config.SSLConfig;
 import org.crazyproxy.config.SocketInfo;
 import org.crazyproxy.util.SSLHandshakeUtil;
@@ -21,7 +21,7 @@ import java.util.concurrent.Executors;
 
 @Slf4j
 public class ClientWorker implements Runnable {
-    private final Config config = Config.getInstance();
+    private final ClientWorkConfig clientWorkConfig = ClientWorkConfig.getInstance();
     private final byte[] inputDataBytes;
     private final StringBuilder stringBuilder = new StringBuilder();
     private final SocketInfo socketInfo;
@@ -49,7 +49,7 @@ public class ClientWorker implements Runnable {
         SocketChannel clientChannel = (SocketChannel) clientKey.channel();
         InetSocketAddress clientAddress = (InetSocketAddress) clientChannel.getLocalAddress();
         String clientPort = String.valueOf(clientAddress.getPort());
-        SocketInfo socketInfo = config.getPortMap().get(clientPort);
+        SocketInfo socketInfo = clientWorkConfig.getPortMap().get(clientPort);
         this.socketInfo = socketInfo;
         InetSocketAddress inetSocketAddress = socketInfo.getInetSocketAddress();
         this.path = socketInfo.getPath();

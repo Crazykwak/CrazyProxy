@@ -1,11 +1,8 @@
 package org.crazyproxy;
 
 import lombok.extern.slf4j.Slf4j;
-import org.crazyproxy.config.Config;
-import org.crazyproxy.config.SSLConfig;
-import org.crazyproxy.config.SSLKeyInfo;
+import org.crazyproxy.config.*;
 import org.crazyproxy.nio.SelectorThread;
-import org.crazyproxy.config.SocketInfo;
 import org.crazyproxy.ssl.AllTrustManager;
 
 import javax.net.ssl.*;
@@ -21,20 +18,64 @@ import java.util.Properties;
 public class CrazyProxy {
 
     public static void main(String[] args) {
-        log.info("try to portMap setting");
-        final Map<String, SocketInfo> portMap = initSocketInfoHashMap();
-        log.info("portMap setting done.");
+        MainConfig mainConfig = null;
+        String propertyPath = System.getProperty("org.crazyproxy.properties", null);
+
+        if (propertyPath == null) {
+            throw new RuntimeException("propertyPath is null");
+        }
+
+        if (propertyPath.endsWith(".properties")) {
+            Properties prop = new Properties();
+
+            try {
+                FileInputStream propertyFileInputString = new FileInputStream(propertyPath);
+                prop.load(propertyFileInputString);
+
+                String bufferSizeStr = prop.getProperty("bufferSize");
+                int bufferSize = parseBufferSize(bufferSizeStr);
+
+                mainConfig = MainConfig.builder()
+                        .keyFIlePath(prop.getProperty("keyFilePath"))
+                        .keyFactoryPassword(prop.getProperty("keyFactoryPassword"))
+                        .keyPassword(prop.getProperty("keyPassword"))
+                        .trustFilePath(prop.getProperty("trustFilePath"))
+                        .trustPassword(prop.getProperty("trustPassword"))
+                        .mappingFilePath(prop.getProperty("mappingFilePath"))
+                        .workerCount(Integer.parseInt(prop.getProperty("workerCount", "50")))
+                        .bufferSize(bufferSize)
+                        .build();
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else if (propertyPath.endsWith(".yaml") || propertyPath.endsWith(".yml")) {
+            //todo. yaml load
+        } else if (propertyPath.endsWith(".xml")) {
+            // todo. xml load
+        } else if (propertyPath.endsWith(".json")) {
+            // todo. json load
+        }
+
+        if (mainConfig == null) {
+            throw new RuntimeException("mainConfig is null");
+        }
+
+        log.info(mainConfig.toString());
 
         // todo. need worker count and bufferSize setting
-        Config.initInstance(portMap);
+        log.info("try to portMap setting");
+        final Map<String, SocketInfo> portMap = initSocketInfoHashMap(mainConfig.mappingFilePath());
+        log.info("portMap setting done.");
+        ClientWorkConfig.initInstance(portMap, mainConfig.workerCount(), mainConfig.bufferSize());
 
         SSLConfig sslConfig = SSLConfig.getInstance();
         SSLContext sslContext = sslConfig.getContext();
-        KeyManager[] keyManagers = null;
-        TrustManager[] trustManagers = null;
+        KeyManager[] keyManagers;
+        TrustManager[] trustManagers;
 
-        keyManagers = getKeyManagers();
-        trustManagers = getTrustManager();
+        keyManagers = getKeyManagers(mainConfig.keyFIlePath(), mainConfig.keyPassword(), mainConfig.keyFactoryPassword());
+        trustManagers = getTrustManager(mainConfig.trustFilePath(), mainConfig.trustPassword());
 
         try {
             sslContext.init(keyManagers, trustManagers, new SecureRandom());
@@ -47,13 +88,33 @@ public class CrazyProxy {
 
     }
 
+    private static int parseBufferSize(String bufferSizeStr) {
+        if (bufferSizeStr == null || bufferSizeStr.isEmpty()) {
+            return 1024 * 100; // 기본값 100KB
+        }
+
+        bufferSizeStr = bufferSizeStr.trim().toLowerCase();
+
+        try {
+            if (bufferSizeStr.endsWith("kb")) {
+                return Integer.parseInt(bufferSizeStr.replace("kb", "").trim()) * 1024;
+            } else if (bufferSizeStr.endsWith("mb")) {
+                return Integer.parseInt(bufferSizeStr.replace("mb", "").trim()) * 1024 * 1024;
+            } else {
+                // 단위가 없으면 byte로 처리
+                return Integer.parseInt(bufferSizeStr);
+            }
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid buffer size format: " + bufferSizeStr, e);
+        }
+    }
+
     /**
      * Create SSL KeyManager. if -D option org.crazyproxy.keyFilePath is null then keymanager is null
      * @return KeyManager[] for SSLContext
      */
-    private static KeyManager[] getKeyManagers() {
+    private static KeyManager[] getKeyManagers(String keyFilePath, String keyPassword, String keyFactoryPassword) {
 
-        String keyFilePath = System.getProperty("org.crazyproxy.keyFilePath", null);
         File keyFile = null;
         KeyManager[] keyManagers = null;
         if (keyFilePath != null) {
@@ -64,7 +125,7 @@ public class CrazyProxy {
         // 키 파일 여부 확인. 없으면 null로 실행
         if (keyFile != null && keyFile.exists()) {
             log.info("Key file exists. try to set SSL Key");
-            sslKeyInfo = setSSLKeyInfo(keyFilePath);
+            sslKeyInfo = setSSLKeyInfo(keyFilePath, keyPassword, keyFactoryPassword);
             keyManagers = sslKeyInfo.getKeyManagerFactory().getKeyManagers();
             log.info("Key set done.");
         }
@@ -75,14 +136,12 @@ public class CrazyProxy {
      * create TrustManager. if -D option org.crazyproxy.trustedCert is null then All Trust Manager class is available
      * @return TrustManager[] for SSLContext
      */
-    private static TrustManager[] getTrustManager() {
-        TrustManager[] trustManagers;
-        String trustedCert = System.getProperty("org.crazyproxy.trustedCert", null);
+    private static TrustManager[] getTrustManager(String trustFilePath, String trustPassword) {
         // null이면 AllTrustManager 객체 생성. 모든 인증서를 ㅇㅋㅇㅋ 하는 친구
-        if (trustedCert != null) {
+        if (trustFilePath != null) {
             log.info("Trusted certificate exists. try to set SSL Trust");
-            File trustedCertFile = new File(trustedCert);
-            return createTrustManager(trustedCertFile, "changeit");
+            File trustedCertFile = new File(trustFilePath);
+            return createTrustManager(trustedCertFile, trustPassword);
         }
 
         return new TrustManager[]{new AllTrustManager()};
@@ -90,39 +149,28 @@ public class CrazyProxy {
 
     /**
      * set SSL Key Info. if org.crazyproxy.keyFilePath is not null. active this method
-     * @param keyFilePath
-     * @return
      */
-    private static SSLKeyInfo setSSLKeyInfo(String keyFilePath) {
+    private static SSLKeyInfo setSSLKeyInfo(String keyFilePath, String keyStorePassword, String keyManagerFactoryPassword) {
         try {
             KeyStore keyStore = KeyStore.getInstance("JKS");
             FileInputStream keyStoreStream = new FileInputStream(keyFilePath);
-            keyStore.load(keyStoreStream, "changeit".toCharArray());
+            keyStore.load(keyStoreStream, keyStorePassword.toCharArray());
+            keyStoreStream.close();
             KeyManagerFactory keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            keyManagerFactory.init(keyStore, "changeit".toCharArray());
+            keyManagerFactory.init(keyStore, keyManagerFactoryPassword.toCharArray());
             SSLKeyInfo.initInstance(keyManagerFactory);
             return SSLKeyInfo.getInstance();
-        } catch (KeyStoreException e) {
-            throw new RuntimeException(e);
         } catch (FileNotFoundException e) {
             log.error("Key file not found. keyFilePath = {}", keyFilePath);
             throw new RuntimeException(e);
-        } catch (CertificateException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        } catch (UnrecoverableKeyException e) {
+        } catch (CertificateException | NoSuchAlgorithmException | UnrecoverableKeyException | IOException |
+                 KeyStoreException e) {
             throw new RuntimeException(e);
         }
     }
 
     /**
      * this method is TrustManger creator. if org.crazyproxy.trustedCert is not null. active this method
-     * @param trustedCertFile
-     * @param keystorePassword
-     * @return
      */
     private static TrustManager[] createTrustManager(File trustedCertFile, String keystorePassword) {
         InputStream trustStoreIS = null;
@@ -132,13 +180,8 @@ public class CrazyProxy {
                 trustStore = KeyStore.getInstance("JKS");
                 trustStoreIS = new FileInputStream(trustedCertFile.getAbsolutePath());
                 trustStore.load(trustStoreIS, keystorePassword.toCharArray());
-            } catch (CertificateException e) {
-                throw new RuntimeException(e);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            } catch (NoSuchAlgorithmException e) {
-                throw new RuntimeException(e);
-            } catch (KeyStoreException e) {
+                trustStoreIS.close();
+            } catch (CertificateException | IOException | NoSuchAlgorithmException | KeyStoreException e) {
                 throw new RuntimeException(e);
             } finally {
                 if (trustStoreIS != null) {
@@ -151,7 +194,7 @@ public class CrazyProxy {
             }
         }
 
-        TrustManagerFactory trustFactory = null;
+        TrustManagerFactory trustFactory;
         try {
             trustFactory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
         } catch (NoSuchAlgorithmException e) {
@@ -159,9 +202,7 @@ public class CrazyProxy {
         }
         try {
             log.info("trustStore = {}", trustStore);
-            if (trustStore != null) {
-            }
-            trustFactory.init((KeyStore) trustStore);
+            trustFactory.init(trustStore);
         } catch (KeyStoreException e) {
             throw new RuntimeException(e);
         }
@@ -172,17 +213,17 @@ public class CrazyProxy {
     /**
      * Initiate for Port forwarding HashMap. you must set mapping.properties file.
      * todo. URI 클래스를 활용해도 괜찮을 듯.
-     * @return
      */
-    private static Map<String, SocketInfo> initSocketInfoHashMap() {
+    private static Map<String, SocketInfo> initSocketInfoHashMap(String mappingFilePath) {
         final Map<String, SocketInfo> portMap = new HashMap<>();
 
-        FileInputStream fis = null;
+        FileInputStream fis;
         try {
             // todo. file address must inject by option.
-            fis = new FileInputStream("mapping.properties");
+            fis = new FileInputStream(mappingFilePath);
             Properties properties = new Properties();
             properties.load(fis);
+            fis.close();
 
             for (Object key : properties.keySet()) {
                 String port = (String) key;
@@ -226,8 +267,6 @@ public class CrazyProxy {
                 portMap.put(port, new SocketInfo(address, host, path, isHttps));
 
             }
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

@@ -1,7 +1,7 @@
 package org.crazyproxy.nio;
 
 import lombok.extern.slf4j.Slf4j;
-import org.crazyproxy.config.Config;
+import org.crazyproxy.config.ClientWorkConfig;
 import org.crazyproxy.config.SocketInfo;
 import org.crazyproxy.handler.AcceptHandler;
 import org.crazyproxy.handler.NioHandler;
@@ -19,7 +19,7 @@ public class SelectorThread extends Thread {
 
     boolean bStop = false;
     private Selector selector;
-    private final Config config = Config.getInstance();
+    private final ClientWorkConfig clientWorkConfig = ClientWorkConfig.getInstance();
 
     public void run() {
 
@@ -74,8 +74,8 @@ public class SelectorThread extends Thread {
 
     private void openPorts() throws IOException {
         log.info("Listening port setting start");
-        Map<String, SocketInfo> portMap = config.getPortMap();
-        for (String port : config.getPortMapKeySet()) {
+        Map<String, SocketInfo> portMap = clientWorkConfig.getPortMap();
+        for (String port : clientWorkConfig.getPortMapKeySet()) {
             ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
             serverSocketChannel.socket().bind(new InetSocketAddress(Integer.parseInt(port)));
             serverSocketChannel.configureBlocking(false);
