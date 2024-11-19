@@ -295,9 +295,13 @@ public class ClientWorker implements Runnable {
         stringBuilder.append("\r\n");
 
         // 첫줄의 path를 변경해준다. 디폴트는 "/"
-        int i = stringBuilder.indexOf("/");
-        stringBuilder.deleteCharAt(i);
-        stringBuilder.insert(i, this.path);
+        int pathIndex = stringBuilder.indexOf("/");
+        if (pathIndex != -1) {
+            stringBuilder.deleteCharAt(pathIndex);
+            stringBuilder.insert(pathIndex, this.path);
+        }
+
+        log.info("str = {}", stringBuilder.toString());
 
         return stringBuilder.toString().getBytes(StandardCharsets.UTF_8);
     }
