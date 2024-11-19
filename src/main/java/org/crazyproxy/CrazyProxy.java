@@ -11,8 +11,6 @@ import org.crazyproxy.ssl.AllTrustManager;
 import javax.net.ssl.*;
 import java.io.*;
 import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.security.*;
 import java.security.cert.CertificateException;
 import java.util.HashMap;
