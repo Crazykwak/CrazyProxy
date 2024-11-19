@@ -84,11 +84,10 @@ public class CrazyProxy {
         if (trustedCert != null) {
             log.info("Trusted certificate exists. try to set SSL Trust");
             File trustedCertFile = new File(trustedCert);
-            trustManagers = createTrustManager(trustedCertFile, "changeit");
-        } else {
-            trustManagers = new TrustManager[]{new AllTrustManager()};
+            return createTrustManager(trustedCertFile, "changeit");
         }
-        return trustManagers;
+
+        return new TrustManager[]{new AllTrustManager()};
     }
 
     /**
@@ -208,9 +207,14 @@ public class CrazyProxy {
                 int portIdx = host.lastIndexOf(":");
                 if (portIdx != -1) {
                     int pathIndex = host.indexOf("/");
+
+                    // pathIndex가 있으면, pathIndex까지 뜯고, 없으면 끝까지 뜯는다.
                     String portInfo = host.substring(portIdx + 1, pathIndex == -1 ? host.length() : pathIndex);
+
+                    // 잘못뜯기면 여기서 예외 터짐. 숫자만 들어와야함.
                     targetPort = Integer.parseInt(portInfo);
 
+                    // path 정보가 있는지 확인 후 뜯어준다.
                     if (pathIndex != -1) {
                         path = host.substring(pathIndex);
                         host = host.substring(0, portIdx);
