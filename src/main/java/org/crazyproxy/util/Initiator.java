@@ -1,5 +1,6 @@
 package org.crazyproxy.util;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.crazyproxy.config.MainConfig;
 import org.crazyproxy.config.SSLKeyInfo;
@@ -24,7 +25,7 @@ import java.util.Properties;
 @Slf4j
 public class Initiator {
 
-    public MainConfig getMainConfig(MainConfig mainConfig, Map<String, Object> configMap, int bufferSize) {
+    public MainConfig getMainConfig(Map<String, Object> configMap, int bufferSize) {
         return MainConfig.builder()
                 .keyFilePath(configMap.get("keyFilePath").toString())
                 .keyPassword(configMap.get("keyPassword").toString())
@@ -37,8 +38,8 @@ public class Initiator {
                 .build();
     }
 
-    public MainConfig getMainConfig(MainConfig mainConfig, Properties prop, int bufferSize) {
-        mainConfig = MainConfig.builder()
+    public MainConfig getMainConfig(Properties prop, int bufferSize) {
+        return MainConfig.builder()
                 .keyFilePath(prop.getProperty("keyFilePath"))
                 .keyFactoryPassword(prop.getProperty("keyFactoryPassword"))
                 .keyPassword(prop.getProperty("keyPassword"))
@@ -48,7 +49,20 @@ public class Initiator {
                 .workerCount(Integer.parseInt(prop.getProperty("workerCount", "50")))
                 .bufferSize(bufferSize)
                 .build();
-        return mainConfig;
+    }
+
+    public MainConfig getMainConfig(JsonNode jsonNode, int bufferSize) {
+
+        return MainConfig.builder()
+                .keyFilePath(jsonNode.get("keyFilePath").asText())
+                .keyPassword(jsonNode.get("keyPassword").asText())
+                .keyFactoryPassword(jsonNode.get("keyFactoryPassword").asText())
+                .trustFilePath(jsonNode.get("trustFilePath").asText())
+                .trustPassword(jsonNode.get("trustPassword").asText())
+                .mappingFilePath(jsonNode.get("mappingFilePath").asText())
+                .workerCount(jsonNode.get("workerCount").asInt())
+                .bufferSize(bufferSize)
+                .build();
     }
 
     public int parseBufferSize(String bufferSizeStr) {

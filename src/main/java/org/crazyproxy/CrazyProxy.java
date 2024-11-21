@@ -1,5 +1,7 @@
 package org.crazyproxy;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.crazyproxy.config.*;
 import org.crazyproxy.nio.SelectorThread;
@@ -25,7 +27,9 @@ public class CrazyProxy {
             throw new RuntimeException("propertyPath is null");
         }
 
+        // 기본 설정 세팅
         if (propertyPath.endsWith(".properties")) {
+            log.info("Property file fount : properties");
             Properties prop = new Properties();
 
             try {
@@ -35,29 +39,39 @@ public class CrazyProxy {
                 String bufferSizeStr = prop.getProperty("bufferSize");
                 int bufferSize = initiator.parseBufferSize(bufferSizeStr);
 
-                mainConfig = initiator.getMainConfig(mainConfig, prop, bufferSize);
+                mainConfig = initiator.getMainConfig(prop, bufferSize);
 
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         } else if (propertyPath.endsWith(".yaml") || propertyPath.endsWith(".yml")) {
+            log.info("Property file fount : yaml | yml");
             Yaml yaml = new Yaml();
             try {
                 Map<String, Object> configMap = yaml.load(new FileInputStream(propertyPath));
                 String bufferSizeStr = configMap.get("bufferSize").toString();
                 int bufferSize = initiator.parseBufferSize(bufferSizeStr);
 
-                mainConfig = initiator.getMainConfig(mainConfig, configMap, bufferSize);
+                mainConfig = initiator.getMainConfig(configMap, bufferSize);
 
 
             } catch (FileNotFoundException e) {
                 throw new RuntimeException(e);
             }
 
-        } else if (propertyPath.endsWith(".xml")) {
-            // todo. xml load
         } else if (propertyPath.endsWith(".json")) {
-            // todo. json load
+            log.info("Property file fount : Json");
+            ObjectMapper mapper = new ObjectMapper();
+            try {
+                JsonNode jsonNode = mapper.readTree(new File(propertyPath));
+                String bufferSizeStr = jsonNode.get("bufferSize").asText();
+                int bufferSize = initiator.parseBufferSize(bufferSizeStr);
+
+                mainConfig = initiator.getMainConfig(jsonNode, bufferSize);
+
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         if (mainConfig == null) {
