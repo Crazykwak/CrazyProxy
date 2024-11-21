@@ -21,7 +21,7 @@ mappingFilePath : port : target 으로 이루어진 파일 패스. properties �
 
 #### 디폴트
 ```text
-keyFilePath = null
+keyFilePath = null <-- 사실상 쓸 일 없음. 나중에 HTTPS로 서버 띄울때나 쓸 듯
 trustFilePath = null <-- 이 값이 null일 경우 모든 인증서를 신뢰한다.
 workerCount = 50
 bufferSize = 100kb
