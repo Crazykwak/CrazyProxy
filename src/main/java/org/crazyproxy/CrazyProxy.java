@@ -82,17 +82,17 @@ public class CrazyProxy {
 
         // todo. need worker count and bufferSize setting
         log.info("try to portMap setting");
-        final Map<String, SocketInfo> portMap = initiator.initSocketInfoHashMap(mainConfig.mappingFilePath());
+        final Map<String, SocketInfo> portMap = initiator.initSocketInfoHashMap(mainConfig.getMappingFilePath());
         log.info("portMap setting done.");
-        ClientWorkConfig.initInstance(portMap, mainConfig.workerCount(), mainConfig.bufferSize());
+        ClientWorkConfig.initInstance(portMap, mainConfig.getWorkerCount(), mainConfig.getBufferSize());
 
         SSLConfig sslConfig = SSLConfig.getInstance();
         SSLContext sslContext = sslConfig.getContext();
         KeyManager[] keyManagers;
         TrustManager[] trustManagers;
 
-        keyManagers = initiator.getKeyManagers(mainConfig.keyFilePath(), mainConfig.keyPassword(), mainConfig.keyFactoryPassword());
-        trustManagers = initiator.getTrustManager(mainConfig.trustFilePath(), mainConfig.trustPassword());
+        keyManagers = initiator.getKeyManagers(mainConfig.getKeyFilePath(), mainConfig.getKeyPassword(), mainConfig.getKeyFactoryPassword());
+        trustManagers = initiator.getTrustManager(mainConfig.getTrustFilePath(), mainConfig.getTrustPassword());
 
         try {
             sslContext.init(keyManagers, trustManagers, new SecureRandom());

@@ -1,10 +1,19 @@
 package org.crazyproxy.config;
 
 import lombok.Builder;
+import lombok.Getter;
 
 @Builder
-public record MainConfig(String keyFilePath, String keyPassword, String keyFactoryPassword, String trustFilePath,
-                         String trustPassword, String mappingFilePath, int workerCount, int bufferSize) {
+@Getter
+public class MainConfig {
+    private final String keyFilePath;
+    private final String keyPassword;
+    private final String keyFactoryPassword;
+    private final String trustFilePath;
+    private final String trustPassword;
+    private final String mappingFilePath;
+    private final int workerCount;
+    private final int bufferSize;
     @Override
     public String toString() {
         return "MainConfig{\n" +

@@ -25,44 +25,57 @@ import java.util.Properties;
 @Slf4j
 public class Initiator {
 
-    public MainConfig getMainConfig(Map<String, Object> configMap, int bufferSize) {
-        return MainConfig.builder()
-                .keyFilePath(configMap.get("keyFilePath") == null ? null : (String) configMap.get("keyFilePath"))
-                .keyPassword(configMap.get("keyPassword") == null ? null : configMap.get("keyPassword").toString())
-                .keyFactoryPassword(configMap.get("keyFactoryPassword") == null ? null : configMap.get("keyFactoryPassword").toString())
-                .trustFilePath(configMap.get("trustFilePath") == null ? null : configMap.get("trustFilePath").toString())
-                .trustPassword(configMap.get("trustPassword") == null ? null : configMap.get("trustPassword").toString())
-                .mappingFilePath(configMap.get("mappingFilePath").toString())
-                .workerCount(Integer.parseInt(configMap.get("workerCount") == null ? "50" : configMap.get("workerCount").toString()))
+    private String getStringValue(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    private Integer getIntValue(Object value, int defaultValue) {
+        return value == null ? defaultValue : Integer.parseInt(value.toString());
+    }
+
+    private MainConfig buildMainConfig(MainConfig.MainConfigBuilder builder, int bufferSize) {
+        return builder
                 .bufferSize(bufferSize)
                 .build();
+    }
+
+    public MainConfig getMainConfig(Map<String, Object> configMap, int bufferSize) {
+        MainConfig.MainConfigBuilder builder = MainConfig.builder()
+                .keyFilePath(getStringValue(configMap.get("keyFilePath")))
+                .keyPassword(getStringValue(configMap.get("keyPassword")))
+                .keyFactoryPassword(getStringValue(configMap.get("keyFactoryPassword")))
+                .trustFilePath(getStringValue(configMap.get("trustFilePath")))
+                .trustPassword(getStringValue(configMap.get("trustPassword")))
+                .mappingFilePath(configMap.get("mappingFilePath").toString())
+                .workerCount(getIntValue(configMap.get("workerCount"), 50));
+
+        return buildMainConfig(builder, bufferSize);
     }
 
     public MainConfig getMainConfig(Properties prop, int bufferSize) {
-        return MainConfig.builder()
+        MainConfig.MainConfigBuilder builder = MainConfig.builder()
                 .keyFilePath(prop.getProperty("keyFilePath"))
-                .keyFactoryPassword(prop.getProperty("keyFactoryPassword"))
                 .keyPassword(prop.getProperty("keyPassword"))
+                .keyFactoryPassword(prop.getProperty("keyFactoryPassword"))
                 .trustFilePath(prop.getProperty("trustFilePath"))
                 .trustPassword(prop.getProperty("trustPassword"))
                 .mappingFilePath(prop.getProperty("mappingFilePath"))
-                .workerCount(Integer.parseInt(prop.getProperty("workerCount", "50")))
-                .bufferSize(bufferSize)
-                .build();
+                .workerCount(Integer.parseInt(prop.getProperty("workerCount", "50")));
+
+        return buildMainConfig(builder, bufferSize);
     }
 
     public MainConfig getMainConfig(JsonNode jsonNode, int bufferSize) {
-
-        return MainConfig.builder()
-                .keyFilePath(jsonNode.get("keyFilePath") == null ? null : jsonNode.get("keyFilePath").asText())
-                .keyPassword(jsonNode.get("keyPassword") == null ? null : jsonNode.get("keyPassword").asText())
-                .keyFactoryPassword(jsonNode.get("keyFactoryPassword") == null ? null : jsonNode.get("keyFactoryPassword").asText())
-                .trustFilePath(jsonNode.get("trustFilePath") == null ? null : jsonNode.get("trustFilePath").asText())
-                .trustPassword(jsonNode.get("trustPassword") == null ? null : jsonNode.get("trustPassword").asText())
+        MainConfig.MainConfigBuilder builder = MainConfig.builder()
+                .keyFilePath(getStringValue(jsonNode.get("keyFilePath")))
+                .keyPassword(getStringValue(jsonNode.get("keyPassword")))
+                .keyFactoryPassword(getStringValue(jsonNode.get("keyFactoryPassword")))
+                .trustFilePath(getStringValue(jsonNode.get("trustFilePath")))
+                .trustPassword(getStringValue(jsonNode.get("trustPassword")))
                 .mappingFilePath(jsonNode.get("mappingFilePath").asText())
-                .workerCount(jsonNode.get("workerCount") == null ? 50 : jsonNode.get("workerCount").asInt())
-                .bufferSize(bufferSize)
-                .build();
+                .workerCount(jsonNode.has("workerCount") ? jsonNode.get("workerCount").asInt() : 50);
+
+        return buildMainConfig(builder, bufferSize);
     }
 
     public int parseBufferSize(String bufferSizeStr) {
