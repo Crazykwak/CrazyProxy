@@ -27,13 +27,13 @@ public class Initiator {
 
     public MainConfig getMainConfig(Map<String, Object> configMap, int bufferSize) {
         return MainConfig.builder()
-                .keyFilePath(configMap.get("keyFilePath").toString())
-                .keyPassword(configMap.get("keyPassword").toString())
-                .keyFactoryPassword(configMap.get("keyFactoryPassword").toString())
-                .trustFilePath(configMap.get("trustFilePath").toString())
-                .trustPassword(configMap.get("trustPassword").toString())
+                .keyFilePath(configMap.get("keyFilePath") == null ? null : (String) configMap.get("keyFilePath"))
+                .keyPassword(configMap.get("keyPassword") == null ? null : configMap.get("keyPassword").toString())
+                .keyFactoryPassword(configMap.get("keyFactoryPassword") == null ? null : configMap.get("keyFactoryPassword").toString())
+                .trustFilePath(configMap.get("trustFilePath") == null ? null : configMap.get("trustFilePath").toString())
+                .trustPassword(configMap.get("trustPassword") == null ? null : configMap.get("trustPassword").toString())
                 .mappingFilePath(configMap.get("mappingFilePath").toString())
-                .workerCount(Integer.parseInt(configMap.get("workerCount").toString()))
+                .workerCount(Integer.parseInt(configMap.get("workerCount") == null ? "50" : configMap.get("workerCount").toString()))
                 .bufferSize(bufferSize)
                 .build();
     }
@@ -54,13 +54,13 @@ public class Initiator {
     public MainConfig getMainConfig(JsonNode jsonNode, int bufferSize) {
 
         return MainConfig.builder()
-                .keyFilePath(jsonNode.get("keyFilePath").asText())
-                .keyPassword(jsonNode.get("keyPassword").asText())
-                .keyFactoryPassword(jsonNode.get("keyFactoryPassword").asText())
-                .trustFilePath(jsonNode.get("trustFilePath").asText())
-                .trustPassword(jsonNode.get("trustPassword").asText())
+                .keyFilePath(jsonNode.get("keyFilePath") == null ? null : jsonNode.get("keyFilePath").asText())
+                .keyPassword(jsonNode.get("keyPassword") == null ? null : jsonNode.get("keyPassword").asText())
+                .keyFactoryPassword(jsonNode.get("keyFactoryPassword") == null ? null : jsonNode.get("keyFactoryPassword").asText())
+                .trustFilePath(jsonNode.get("trustFilePath") == null ? null : jsonNode.get("trustFilePath").asText())
+                .trustPassword(jsonNode.get("trustPassword") == null ? null : jsonNode.get("trustPassword").asText())
                 .mappingFilePath(jsonNode.get("mappingFilePath").asText())
-                .workerCount(jsonNode.get("workerCount").asInt())
+                .workerCount(jsonNode.get("workerCount") == null ? 50 : jsonNode.get("workerCount").asInt())
                 .bufferSize(bufferSize)
                 .build();
     }
