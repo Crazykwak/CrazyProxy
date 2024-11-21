@@ -16,7 +16,6 @@ import java.nio.channels.Selector;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Slf4j
@@ -39,7 +38,6 @@ public class ClientWorker implements Runnable {
     private ByteBuffer tmpBuffer;
 
     private SocketUtil socketUtil = SocketUtil.getInstance();
-    private ExecutorService executor = Executors.newSingleThreadExecutor();
 
 
     public ClientWorker(byte[] inputDataBytes, SelectionKey clientKey) throws IOException {
@@ -127,7 +125,7 @@ public class ClientWorker implements Runnable {
                             log.debug("Connected!!! host = {}", channel.getRemoteAddress());
 
                             if (socketInfo.isHttps()) {
-                                if (!SSLHandshakeUtil.doHandshake(sslEngine, executor, channel, myAppData, myNetData, peerAppData, peerNetData)) {
+                                if (!SSLHandshakeUtil.doHandshake(sslEngine, Executors.newSingleThreadExecutor(), channel, myAppData, myNetData, peerAppData, peerNetData)) {
                                     log.error("handshake failed. close channel");
                                     socketUtil.socketClose(channel);
                                     socketUtil.socketClose(clientChannel);
