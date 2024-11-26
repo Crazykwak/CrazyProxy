@@ -168,8 +168,10 @@ public class SSLHandshakeUtil {
 
     private static ByteBuffer enlargeBuffer(ByteBuffer buffer, int sessionSize) {
         if (sessionSize > buffer.capacity()) {
+            log.debug("\tBufferOverflow session size > buffer.capacity");
             return ByteBuffer.allocate(sessionSize);
         } else {
+            log.debug("\tBufferOverflow session size < buffer.capacity");
             return ByteBuffer.allocate(buffer.capacity() * 2);
         }
     }

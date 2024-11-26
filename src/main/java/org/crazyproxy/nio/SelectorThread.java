@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.crazyproxy.config.ClientWorkConfig;
 import org.crazyproxy.config.SocketInfo;
 import org.crazyproxy.handler.AcceptHandler;
+import org.crazyproxy.handler.CustomeThread;
 import org.crazyproxy.handler.NioHandler;
 
 import java.io.IOException;
@@ -13,13 +14,30 @@ import java.nio.channels.Selector;
 import java.nio.channels.ServerSocketChannel;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 @Slf4j
 public class SelectorThread extends Thread {
 
     boolean bStop = false;
     private Selector selector;
+    private final ExecutorService executor;
     private final ClientWorkConfig clientWorkConfig = ClientWorkConfig.getInstance();
+
+    public SelectorThread() {
+        ThreadFactory threadFactory = new ThreadFactory() {
+
+            @Override
+            public Thread newThread(Runnable r) {
+                Thread thread = new CustomeThread(r);
+                thread.setDaemon(true);
+                return thread;
+            }
+        };
+        executor = Executors.newFixedThreadPool(clientWorkConfig.getWorkerCount(), threadFactory);
+    }
 
     public void run() {
 
@@ -43,19 +61,25 @@ public class SelectorThread extends Thread {
 
                 selectionKeys = selector.selectedKeys();
 
-                NioHandler socketHandler = null;
 
                 for (SelectionKey selectionKey : selectionKeys) {
-                    // attach를 통해 handler를 만드므로 지정된 이벤트를 제외하고 모두 attachment() 로 처리 가능
-                    if (selectionKey.isAcceptable() || selectionKey.isReadable()) {
-                        socketHandler = (NioHandler) selectionKey.attachment();
-                    }
 
-                    if (socketHandler == null) {
-                        throw new RuntimeException("socket handler is null");
-                    }
+                    if (selectionKey.isValid() && selectionKey.isAcceptable()) {
+                        NioHandler socketHandler = (NioHandler) selectionKey.attachment();
+                        socketHandler.handle(selectionKey);
+                    } else if (selectionKey.isValid() && selectionKey.isReadable()) {
+                        NioHandler socketHandler = (NioHandler) selectionKey.attachment();
 
-                    socketHandler.handle(selectionKey);
+                        executor.execute(() -> {
+                            try {
+                                if (selectionKey.channel().isOpen()){
+                                    socketHandler.handle(selectionKey);
+                                }
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
+                    }
                 }
 
                 selectionKeys.clear();

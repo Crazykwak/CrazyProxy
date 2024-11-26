@@ -15,21 +15,7 @@ import java.util.concurrent.ThreadFactory;
 public class ClientHandler implements NioHandler {
 
     private final ClientWorkConfig clientWorkConfig = ClientWorkConfig.getInstance();
-    private final ExecutorService executor;
     private final ByteBuffer buffer = ByteBuffer.allocate(clientWorkConfig.getBufferSize());
-
-    public ClientHandler() {
-        ThreadFactory threadFactory = new ThreadFactory() {
-
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread thread = new CustomeThread(r);
-                thread.setDaemon(true);
-                return thread;
-            }
-        };
-        executor = Executors.newFixedThreadPool(clientWorkConfig.getWorkerCount(), threadFactory);
-    }
 
     @Override
     public void handle(SelectionKey key) throws IOException {
@@ -49,8 +35,7 @@ public class ClientHandler implements NioHandler {
         buffer.get(inputDataBytes, 0, readBytes);
         buffer.clear();
 
-        log.info("execute!");
-        executor.execute(new ClientWorker(inputDataBytes, key));
+        new ClientWorker(inputDataBytes, key).run();
     }
 
 }

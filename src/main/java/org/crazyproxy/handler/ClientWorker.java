@@ -60,8 +60,8 @@ public class ClientWorker implements Runnable {
         targetChannel.connect(inetSocketAddress);
 
         if (socketInfo.isHttps()) {
-                sslEngine = SSLConfig.getInstance().getContext().createSSLEngine();
-                sslEngine.setUseClientMode(true);
+            sslEngine = SSLConfig.getInstance().getContext().createSSLEngine();
+            sslEngine.setUseClientMode(true);
         }
 
         selector = Selector.open();
@@ -114,19 +114,21 @@ public class ClientWorker implements Runnable {
         try {
 
             while (keepSelect) {
+                log.debug("[SELECT START]");
                 selector.select();
 
                 keys = selector.selectedKeys();
                 for (SelectionKey key : keys) {
 
                     if (key.isConnectable()) {
+                        log.debug("\t[CONNECT]");
                         SocketChannel channel = (SocketChannel) key.channel();
                         if (channel.finishConnect()) {
-                            log.debug("Connected!!! host = {}", channel.getRemoteAddress());
+                            log.debug("\t\tConnected!!! host = {}", channel.getRemoteAddress());
 
                             if (socketInfo.isHttps()) {
                                 if (!SSLHandshakeUtil.doHandshake(sslEngine, Executors.newSingleThreadExecutor(), channel, myAppData, myNetData, peerAppData, peerNetData)) {
-                                    log.error("handshake failed. close channel");
+                                    log.error("\t\thandshake failed. close channel");
                                     socketUtil.socketClose(channel);
                                     socketUtil.socketClose(clientChannel);
                                     continue;
@@ -137,100 +139,118 @@ public class ClientWorker implements Runnable {
                         }
 
                     } else if (key.isWritable()) {
+                        log.debug("\t[START WRITABLE]");
                         targetChannel = (SocketChannel) key.channel();
-                        ByteBuffer realWriteBuffer = myAppData;
 
                         if (socketInfo.isHttps()) {
-                            SSLEngineResult result = sslEngine.wrap(myAppData, tmpBuffer);
+                            myNetData.clear();
+                            SSLEngineResult result = sslEngine.wrap(myAppData, myNetData);
 
                             // todo. it's bothering
                             switch (result.getStatus()) {
                                 case OK:
-                                    log.debug("write OK");
-                                    tmpBuffer.flip();
-                                    realWriteBuffer = tmpBuffer;
+                                    log.debug("\t\twrite OK");
+                                    myNetData.flip();
+                                    while (myNetData.hasRemaining()) {
+                                        targetChannel.write(myNetData);
+                                    }
                                     break;
                                 case BUFFER_OVERFLOW:
-                                    log.debug("Buffer overflow");
+                                    log.debug("\t\tBuffer overflow");
+                                    myNetData = SSLHandshakeUtil.enlargeApplicationBuffer(myNetData, sslEngine);
                                     break;
                                 case BUFFER_UNDERFLOW:
-                                    log.debug("Buffer Underflow");
+                                    log.debug("\t\tBuffer Underflow");
                                     break;
                                 case CLOSED:
-                                    log.debug("Connection closed");
+                                    log.debug("\t\tConnection closed");
                                     break;
                                 default:
-                                    throw new IllegalStateException("Unexpected value: " + result.getStatus());
+                                    throw new IllegalStateException("\t\tUnexpected value: " + result.getStatus());
+                            }
+                        } else {
+                            while (myAppData.hasRemaining()) {
+                                targetChannel.write(myAppData);
                             }
                         }
 
-                        while (realWriteBuffer.hasRemaining()) {
-                            targetChannel.write(realWriteBuffer);
-                        }
-
                         key.interestOps(SelectionKey.OP_READ);
-                        realWriteBuffer.clear();
-                        myAppData.clear();
+                        allBufferClear();
 
                     } else if (key.isReadable()) {
+                        log.debug("\t[START READABLE]");
                         targetChannel = (SocketChannel) key.channel();
                         clientChannel = (SocketChannel) clientKey.channel();
-                        myAppData.clear();
 
-                        int readBytes = targetChannel.read(myAppData);
+                        if (!targetChannel.isConnected()) {
+                            log.warn("\t\ttargetChannel is not connected");
+                            continue;
+                        }
+                        int readBytes = targetChannel.read(peerNetData);
+
                         if (readBytes > 0) {
-                            myAppData.flip();
-                            ByteBuffer realReadBuffer = myAppData;
+                            peerNetData.flip();
 
                             if (socketInfo.isHttps()) {
-                                tmpBuffer.clear();
 
                                 SSLEngineResult result = null;
-                                result = sslEngine.unwrap(realReadBuffer, tmpBuffer);
 
-                                while (realReadBuffer.hasRemaining()) {
-                                    result = sslEngine.unwrap(realReadBuffer, tmpBuffer);
+                                while (peerNetData.hasRemaining()) {
+                                    log.debug("\t\tpeerNetData = {}, {}", peerNetData.limit(), peerNetData.remaining());
+                                    result = sslEngine.unwrap(peerNetData, peerAppData);
+                                    if (!result.getStatus().equals(SSLEngineResult.Status.OK)) {
+                                        break;
+                                    }
+                                }
+
+                                if (result == null) {
+                                    log.error("\t\tresult is null. WHAT THE FUCK");
+                                    throw new RuntimeException("result is null");
                                 }
                                 SSLEngineResult.Status status = result.getStatus();
 
                                 switch (status) {
                                     case OK:
-                                        log.debug("OK");
-                                        tmpBuffer.flip();
-                                        realReadBuffer = tmpBuffer;
+                                        log.debug("\t\tOK");
+                                        peerAppData.flip();
+                                        clientChannel.write(peerAppData);
+                                        allBufferClear();
                                         break;
                                     case BUFFER_UNDERFLOW:
-                                        log.debug("buffer underflow");
+                                        log.debug("\t\tbuffer underflow compact peerNetData");
+                                        peerNetData.compact();
                                         break;
                                     case BUFFER_OVERFLOW:
-                                        log.debug("buffer overflow");
-                                        tmpBuffer = SSLHandshakeUtil.enlargeApplicationBuffer(tmpBuffer, sslEngine);
+                                        log.debug("\t\tbuffer overflow");
+                                        peerAppData = SSLHandshakeUtil.enlargeApplicationBuffer(peerAppData, sslEngine);
                                         break;
+
                                     case CLOSED:
-                                        log.debug("SSL Engine CLOSED");
+                                        log.debug("\t\tSSL Engine CLOSED");
                                         socketUtil.socketClose(targetChannel);
                                         socketUtil.socketClose(clientChannel);
+                                        allBufferClear();
+                                        keepSelect = false;
                                         break;
+
                                     default:
-                                        throw new IllegalStateException("Unexpected value: " + result.getStatus());
+                                        throw new IllegalStateException("\t\tUnexpected value: " + result.getStatus());
                                 }
+
+                            } else {
+                                while (peerNetData.hasRemaining()) {
+                                    clientChannel.write(peerNetData);
+                                }
+                                peerNetData.clear();
                             }
-
-                            while (realReadBuffer.hasRemaining()) {
-                                clientChannel.write(realReadBuffer);
-                            }
-
-                            accumulatedData.setLength(0);
-                            realReadBuffer.clear();
-                            myAppData.clear();
-                        }
-
-                        if (readBytes == -1) {
+                        } else {
+                            log.debug("\t\tChannel closed");
                             keepSelect = false;
-                            clientChannel.close();
+                            socketUtil.socketClose(targetChannel);
+                            socketUtil.socketClose(clientChannel);
                             clientKey.cancel();
+                            allBufferClear();
                         }
-
                     }
                 }
 
@@ -246,26 +266,13 @@ public class ClientWorker implements Runnable {
             socketUtil.socketClose(targetChannel);
             throw new RuntimeException(e);
         } finally {
-            myAppData.clear();
+            allBufferClear();
             if (keys != null) {
                 keys.clear();
             }
+            socketUtil.socketClose(clientChannel);
+            socketUtil.socketClose(targetChannel);
         }
-    }
-
-    /**
-     * 청크방식의 통신시 마지막 청크인지 확인하는 메서드
-     * 문제는 html 내부에 그냥 0\r\n\r\n 이 있을 경우를 못거른다.
-     * 이 메서드를 없애야함.
-     * @param writeBuffer
-     * @return booelan
-     */
-    private boolean isLastChunk(ByteBuffer writeBuffer) {
-
-        while (writeBuffer.hasRemaining()) {
-            accumulatedData.append((char) writeBuffer.get());
-        }
-        return accumulatedData.toString().contains("0\r\n\r\n");
     }
 
     /**
@@ -296,6 +303,15 @@ public class ClientWorker implements Runnable {
             stringBuilder.insert(pathIndex, this.path);
         }
 
-        return stringBuilder.toString().getBytes(StandardCharsets.UTF_8);
+        String modifyString = stringBuilder.toString();
+
+        return modifyString.getBytes(StandardCharsets.UTF_8);
+    }
+
+    private void allBufferClear() {
+        myAppData.clear();
+        myNetData.clear();
+        peerAppData.clear();
+        peerNetData.clear();
     }
 }
