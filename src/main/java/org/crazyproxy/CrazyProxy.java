@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.crazyproxy.config.*;
+import org.crazyproxy.exception.FilePathNullPointException;
+import org.crazyproxy.exception.MainConfigNotFoundException;
+import org.crazyproxy.exception.SSLContextInitiationException;
 import org.crazyproxy.nio.SelectorThread;
 import org.crazyproxy.util.Initiator;
 import org.yaml.snakeyaml.Yaml;
@@ -24,7 +27,7 @@ public class CrazyProxy {
         Initiator initiator = new Initiator();
 
         if (propertyPath == null) {
-            throw new RuntimeException("propertyPath is null");
+            throw new FilePathNullPointException("propertyPath is null");
         }
 
         // 기본 설정 세팅
@@ -54,7 +57,6 @@ public class CrazyProxy {
 
                 mainConfig = initiator.getMainConfig(configMap, bufferSize);
 
-
             } catch (FileNotFoundException e) {
                 throw new RuntimeException(e);
             }
@@ -75,7 +77,7 @@ public class CrazyProxy {
         }
 
         if (mainConfig == null) {
-            throw new RuntimeException("mainConfig is null");
+            throw new MainConfigNotFoundException("mainConfig is null. please check your config file");
         }
 
         log.info(mainConfig.toString());
@@ -97,7 +99,7 @@ public class CrazyProxy {
         try {
             sslContext.init(keyManagers, trustManagers, new SecureRandom());
         } catch (KeyManagementException e) {
-            throw new RuntimeException(e);
+            throw new SSLContextInitiationException(e.getMessage());
         }
 
         SelectorThread selectorThread = new SelectorThread();
