@@ -18,6 +18,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+/**
+ * Client와 직접 통신하는 서버 스레드
+ */
 @Slf4j
 public class SelectorThread extends Thread {
 

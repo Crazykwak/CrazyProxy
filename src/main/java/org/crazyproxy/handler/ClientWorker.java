@@ -18,6 +18,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.concurrent.Executors;
 
+/**
+ * 클라이언트의 요청 서버로 요청 후 클라에게 응답을 주는 클래스
+ * ClientHandle에서 스레드풀을 가지고 있었기 때문에, Runnable로 만들어서 썼었음.
+ * 수정 필요.
+ */
 @Slf4j
 public class ClientWorker implements Runnable {
 
