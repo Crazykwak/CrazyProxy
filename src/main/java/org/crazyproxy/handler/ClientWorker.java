@@ -35,7 +35,6 @@ public class ClientWorker implements Runnable {
     private ByteBuffer myNetData;
     private ByteBuffer peerAppData;
     private ByteBuffer peerNetData;
-    private ByteBuffer tmpBuffer;
 
     private SocketUtil socketUtil = SocketUtil.getInstance();
 
@@ -80,7 +79,6 @@ public class ClientWorker implements Runnable {
         myNetData = customeThread.getMyNetData();
         peerAppData = customeThread.getPeerAppData();
         peerNetData = customeThread.getPeerNetData();
-        tmpBuffer = customeThread.getTmpBuffer();
 
         myNetData.clear();
         peerNetData.clear();

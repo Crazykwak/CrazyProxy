@@ -14,7 +14,6 @@ public class CustomeThread extends Thread {
     private ByteBuffer myNetData = ByteBuffer.allocate(ClientWorkConfig.getInstance().getBufferSize());
     private ByteBuffer peerAppData = ByteBuffer.allocate(ClientWorkConfig.getInstance().getBufferSize());
     private ByteBuffer peerNetData = ByteBuffer.allocate(ClientWorkConfig.getInstance().getBufferSize());
-    private ByteBuffer tmpBuffer = ByteBuffer.allocate(ClientWorkConfig.getInstance().getBufferSize());
 
     public CustomeThread(Runnable target) {
         super(target);
